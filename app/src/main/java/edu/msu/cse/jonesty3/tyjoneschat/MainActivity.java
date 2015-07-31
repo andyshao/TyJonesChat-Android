@@ -8,9 +8,10 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.google.gson.JsonArray;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 
 import microsoft.aspnet.signalr.client.Action;
 import microsoft.aspnet.signalr.client.ErrorCallback;
@@ -25,12 +26,15 @@ public class MainActivity extends ActionBarActivity {
 
    private HubProxy _hub;
    private HubConnection _connection;
+   private final GsonBuilder _gsonBuilder = new GsonBuilder();
 
    @Override
    protected void onCreate( Bundle savedInstanceState ) {
       super.onCreate( savedInstanceState );
       setContentView( R.layout.activity_main );
       Platform.loadPlatformComponent( new AndroidPlatformComponent() );
+
+      _gsonBuilder.registerTypeAdapter( SignalRMessage.class, new SignalRMessageDeserializer() );
 
       _connection = new HubConnection( "http://tyjoneschat.azurewebsites.net/" );
       _hub = _connection.createHubProxy( "TyJonesChatHub" );
@@ -70,13 +74,17 @@ public class MainActivity extends ActionBarActivity {
             runOnUiThread( new Runnable() {
                @Override
                public void run() {
-                  JsonObject jsonObject = messageJson.getAsJsonObject();
-                  if ( jsonObject.get( "A" ) != null ) {
-                     JsonArray jsonArray = jsonObject.getAsJsonArray( "A" );
-                     String name = jsonArray.get( 0 ).getAsString();
-                     String message = jsonArray.get( 1 ).getAsString();
-                     TextView textView = (TextView) findViewById( R.id.messagesTextView );
-                     textView.setText( textView.getText() + "\n" + name + ": " + message );
+                  if ( messageJson.getAsJsonObject().get( "A" ) != null ) {
+                     try {
+                        Gson gson = _gsonBuilder.create();
+                        SignalRMessage signalRMessage = gson.fromJson( messageJson, SignalRMessage.class );
+                        ChatMessage chatMessage = signalRMessage.getChatMessage();
+
+                        TextView textView = (TextView) findViewById( R.id.messagesTextView );
+                        textView.setText( textView.getText() + "\n" + chatMessage.getName() + ": " + chatMessage.getMessage() );
+                     } catch ( JsonSyntaxException e ) {
+                        Log.i( "TyJonesChat", "Error parsing message: " + e.getMessage() );
+                     }
                   }
                }
             } );
@@ -92,6 +100,7 @@ public class MainActivity extends ActionBarActivity {
 
    public void sendMessage( View view ) {
       EditText editText = (EditText) findViewById( R.id.messageText );
+
       String message = editText.getText().toString();
       _hub.invoke( "Send", Build.DEVICE, message );
       editText.setText( "" );
