@@ -49,7 +49,7 @@ public class MainActivity extends ActionBarActivity {
       _connection.connected( new Runnable() {
          @Override
          public void run() {
-            Log.i( "TyJonesChat", "CONNECTED" );
+            _hub.invoke( "Connected", Build.DEVICE );
          }
       } );
 
@@ -74,9 +74,13 @@ public class MainActivity extends ActionBarActivity {
             runOnUiThread( new Runnable() {
                @Override
                public void run() {
-                  if ( messageJson.getAsJsonObject().get( "A" ) != null ) {
+                  if ( messageJson.getAsJsonObject().get( "I" ) != null )
+                     return;
+
+                  final String methodName = messageJson.getAsJsonObject().get( "M" ).getAsString();
+                  if ( methodName.equals( "broadcastMessage" ) ) {
+                     Gson gson = _gsonBuilder.create();
                      try {
-                        Gson gson = _gsonBuilder.create();
                         SignalRMessage signalRMessage = gson.fromJson( messageJson, SignalRMessage.class );
                         ChatMessage chatMessage = signalRMessage.getChatMessage();
 
@@ -85,6 +89,11 @@ public class MainActivity extends ActionBarActivity {
                      } catch ( JsonSyntaxException e ) {
                         Log.i( "TyJonesChat", "Error parsing message: " + e.getMessage() );
                      }
+                  } else if ( methodName.equals( "broadcastConnected" ) ) {
+                     String userName = messageJson.getAsJsonObject().get( "A" ).getAsJsonArray().get( 0 ).getAsString();
+
+                     TextView textView = (TextView) findViewById( R.id.messagesTextView );
+                     textView.setText( textView.getText() + "\n" + userName + " has connected." );
                   }
                }
             } );
